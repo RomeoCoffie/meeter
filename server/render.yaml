@@ -18,4 +18,6 @@ services:
       - key: DB_PASSWORD
         sync: false
       - key: DB_NAME
-        sync: false 
+        sync: false
+      - key: DB_SSL
+        value: "true" 
