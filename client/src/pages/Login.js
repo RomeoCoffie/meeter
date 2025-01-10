@@ -10,8 +10,8 @@ function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
+    email: 'rom@romeo.com',
+    password: 'Letmein21..'
   });
 
   const handleSubmit = async (e) => {
@@ -47,6 +47,9 @@ function Login() {
         <div>
           <Typography variant="h4" align="center" gutterBottom>
             Sign In
+          </Typography>
+          <Typography variant="body2" align="center" color="textSecondary">
+            Use the pre-filled credentials or enter your own
           </Typography>
         </div>
 
