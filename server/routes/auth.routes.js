@@ -12,9 +12,6 @@ router.post(
     body('password')
       .isLength({ min: 6 })
       .withMessage('Password must be at least 6 characters'),
-    body('userType')
-      .isIn(['freelancer', 'client'])
-      .withMessage('User type must be either freelancer or client'),
     validate
   ],
   register

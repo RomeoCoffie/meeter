@@ -12,7 +12,9 @@ const generateToken = (id) => {
 // @route   POST /auth/register
 // @access  Public
 const register = async (req, res) => {
-  const { fullName, email, password, userType } = req.body;
+  const { fullName, email, password } = req.body;
+  // Set a default user type that can be updated later in the profile
+  const defaultUserType = 'freelancer';
 
   try {
     // Check if user exists
@@ -32,10 +34,10 @@ const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user
+    // Create user with default user type
     const result = await pool.query(
       'INSERT INTO users (full_name, email, password, user_type) VALUES ($1, $2, $3, $4) RETURNING id',
-      [fullName, email, hashedPassword, userType]
+      [fullName, email, hashedPassword, defaultUserType]
     );
 
     if (!result.rows[0].id) {
