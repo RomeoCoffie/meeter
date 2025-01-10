@@ -9,21 +9,23 @@ const generateToken = (id) => {
 };
 
 // @desc    Register user
-// @route   POST /api/auth/register
+// @route   POST /auth/register
 // @access  Public
 const register = async (req, res) => {
   const { fullName, email, password, userType } = req.body;
 
   try {
     // Check if user exists
-    const [existingUser] = await pool.query(
-      'SELECT * FROM users WHERE email = ?',
+    const existingUser = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
       [email]
     );
 
-    if (existingUser.length > 0) {
-      res.status(400);
-      throw new Error('User already exists');
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists'
+      });
     }
 
     // Hash password
@@ -31,46 +33,48 @@ const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create user
-    const [result] = await pool.query(
-      'INSERT INTO users (full_name, email, password, user_type) VALUES (?, ?, ?, ?)',
+    const result = await pool.query(
+      'INSERT INTO users (full_name, email, password, user_type) VALUES ($1, $2, $3, $4) RETURNING id',
       [fullName, email, hashedPassword, userType]
     );
 
-    if (!result.insertId) {
-      res.status(400);
-      throw new Error('Failed to create user');
+    if (!result.rows[0].id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to create user'
+      });
     }
 
-    const [newUser] = await pool.query(
-      'SELECT id, full_name, email, user_type FROM users WHERE id = ?',
-      [result.insertId]
+    const newUser = await pool.query(
+      'SELECT id, full_name, email, user_type FROM users WHERE id = $1',
+      [result.rows[0].id]
     );
 
-    const token = generateToken(result.insertId);
+    const token = generateToken(result.rows[0].id);
 
     res.status(201).json({
       success: true,
       data: {
         user: {
-          id: newUser[0].id,
-          fullName: newUser[0].full_name,
-          email: newUser[0].email,
-          userType: newUser[0].user_type
+          id: newUser.rows[0].id,
+          fullName: newUser.rows[0].full_name,
+          email: newUser.rows[0].email,
+          userType: newUser.rows[0].user_type
         },
         token
       }
     });
   } catch (error) {
-    // If error is not already handled (doesn't have a status code)
-    if (!res.statusCode || res.statusCode === 200) {
-      res.status(400);
-    }
-    throw error;
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Registration failed'
+    });
   }
 };
 
 // @desc    Login user
-// @route   POST /api/auth/login
+// @route   POST /auth/login
 // @access  Public
 const login = async (req, res) => {
   const { email, password } = req.body;
@@ -78,26 +82,30 @@ const login = async (req, res) => {
   try {
     console.log('Login attempt for email:', email);
     
-    const [users] = await pool.query(
-      'SELECT * FROM users WHERE email = ?',
+    const result = await pool.query(
+      'SELECT * FROM users WHERE email = $1',
       [email]
     );
 
-    if (users.length === 0) {
+    if (result.rows.length === 0) {
       console.log('No user found with email:', email);
-      res.status(401);
-      throw new Error('Invalid credentials');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
     }
 
-    const user = users[0];
+    const user = result.rows[0];
     console.log('User found:', { id: user.id, email: user.email });
 
     const isMatch = await bcrypt.compare(password, user.password);
     console.log('Password match:', isMatch);
 
     if (!isMatch) {
-      res.status(401);
-      throw new Error('Invalid credentials');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
     }
 
     const token = generateToken(user.id);
@@ -118,9 +126,11 @@ const login = async (req, res) => {
     console.log('Sending successful login response');
     res.json(response);
   } catch (error) {
-    console.error('Login error:', error.message);
-    res.status(401);
-    throw new Error(error.message);
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Login failed'
+    });
   }
 };
 
