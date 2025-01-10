@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   TextField, 
   Button, 
@@ -18,7 +18,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import api from '../services/api.config';
 import LoadingSpinner from './LoadingSpinner';
-import { isWithinInterval, parseISO, addMinutes } from 'date-fns';
+import { isWithinInterval, addMinutes } from 'date-fns';
 
 function ScheduleMeeting() {
   const [meetings, setMeetings] = useState([]);
@@ -34,43 +34,7 @@ function ScheduleMeeting() {
     participants: []
   });
 
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  // Watch for changes in participants and update unavailable dates
-  useEffect(() => {
-    if (formData.participants.length > 0) {
-      fetchParticipantsAvailability();
-    } else {
-      setUnavailableDates([]);
-    }
-  }, [formData.participants]);
-
-  const loadInitialData = async () => {
-    try {
-      setIsLoading(true);
-      const [meetingsResponse, usersResponse] = await Promise.all([
-        fetchMeetings(),
-        fetchUsers()
-      ]);
-      
-      if (meetingsResponse) {
-        setMeetings(meetingsResponse.data.meetings || []);
-      }
-      
-      if (usersResponse) {
-        console.log('Users fetched:', usersResponse.data);
-        setUsers(usersResponse.data || []);
-      }
-    } catch (error) {
-      console.error('Error loading initial data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchParticipantsAvailability = async () => {
+  const fetchParticipantsAvailability = useCallback(async () => {
     try {
       const participantIds = formData.participants.map(p => p.id);
       const startDate = new Date();
@@ -117,7 +81,42 @@ function ScheduleMeeting() {
     } catch (error) {
       console.error('Error fetching participants availability:', error);
     }
-  };
+  }, [formData.participants]);
+
+  const loadInitialData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [meetingsResponse, usersResponse] = await Promise.all([
+        fetchMeetings(),
+        fetchUsers()
+      ]);
+      
+      if (meetingsResponse) {
+        setMeetings(meetingsResponse.data.meetings || []);
+      }
+      
+      if (usersResponse) {
+        console.log('Users fetched:', usersResponse.data);
+        setUsers(usersResponse.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading initial data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  useEffect(() => {
+    if (formData.participants.length > 0) {
+      fetchParticipantsAvailability();
+    } else {
+      setUnavailableDates([]);
+    }
+  }, [formData.participants, fetchParticipantsAvailability]);
 
   const isDateTimeUnavailable = (dateTime) => {
     // Check if the date is in the unavailable dates list

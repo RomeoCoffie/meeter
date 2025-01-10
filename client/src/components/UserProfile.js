@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { TextField, Button, RadioGroup, FormControlLabel, Radio, Paper } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api.config';
@@ -21,11 +21,7 @@ function UserProfile() {
     projectDescription: ''
   });
 
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
-
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
       console.log('Fetching user profile...');
       const response = await api.get('/users/profile');
@@ -55,7 +51,11 @@ function UserProfile() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.userType]);
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, [fetchUserProfile]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
