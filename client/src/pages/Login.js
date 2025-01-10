@@ -10,8 +10,8 @@ function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    email: 'rom@romeo.com',
-    password: 'Letmein21..'
+    email: '',
+    password: ''
   });
 
   const handleSubmit = async (e) => {
@@ -20,9 +20,10 @@ function Login() {
     setIsLoading(true);
 
     try {
-      await login(formData.email, formData.password);
+      await login(formData);
       navigate('/dashboard');
     } catch (err) {
+      console.error('Login error:', err);
       setError(err.message || 'Login failed');
     } finally {
       setIsLoading(false);
@@ -49,7 +50,7 @@ function Login() {
             Sign In
           </Typography>
           <Typography variant="body2" align="center" color="textSecondary">
-            Use the pre-filled credentials or enter your own
+            Enter your credentials to sign in
           </Typography>
         </div>
 
