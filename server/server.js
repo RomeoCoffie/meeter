@@ -16,8 +16,8 @@ const app = express();
 const corsOptions = {
   origin: [
     'http://localhost:3000',
-    'https://memeet.netlify.app', // Updated Netlify domain
-    process.env.FRONTEND_URL // Optional: Add from environment variable
+    'https://memeet.netlify.app',
+    process.env.FRONTEND_URL
   ],
   credentials: true,
   optionsSuccessStatus: 200
@@ -29,9 +29,9 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 // Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/meetings', require('./routes/meetings'));
-app.use('/api/availability', require('./routes/availability'));
+app.use('/api/auth', require('./routes/auth.routes'));
+app.use('/api/meetings', require('./routes/meeting.routes'));
+app.use('/api/users', require('./routes/user.routes'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
