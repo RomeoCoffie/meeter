@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const morgan = require('morgan');
-const { errorHandler } = require('./middleware/errorMiddleware');
 const { connectDB } = require('./config/db');
 
 // Load env vars
@@ -13,18 +12,36 @@ connectDB();
 
 const app = express();
 
+// CORS configuration
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',
+    'https://memeet.netlify.app', // Updated Netlify domain
+    process.env.FRONTEND_URL // Optional: Add from environment variable
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(morgan('dev'));
 
 // Routes
-app.use('/api/auth', require('./routes/auth.routes'));
-app.use('/api/meetings', require('./routes/meeting.routes'));
-app.use('/api/users', require('./routes/user.routes'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/meetings', require('./routes/meetings'));
+app.use('/api/availability', require('./routes/availability'));
 
-// Error handling
-app.use(errorHandler);
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    error: 'Server Error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
 
 const PORT = process.env.PORT || 5000;
 
