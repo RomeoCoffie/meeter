@@ -7,7 +7,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check token and load user on mount
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -30,30 +29,39 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       const response = await api.post('/auth/login', credentials);
-      const { token, user } = response.data;
-      
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-      setUser(user);
-      
-      return user;
+      console.log('Login response:', response.data);
+
+      if (response.data && response.data.success && response.data.data) {
+        const { token, user } = response.data.data;
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+        setUser(user);
+        return user;
+      } else {
+        throw new Error('Invalid response format from server');
+      }
     } catch (error) {
-      throw new Error(error.message || 'Login failed');
+      console.error('Login error details:', error);
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else {
+        throw new Error('Login failed. Please try again.');
+      }
     }
   };
 
   const register = async (userData) => {
     try {
       const response = await api.post('/auth/register', userData);
-      const { token, user } = response.data;
-      
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-      setUser(user);
-      
-      return user;
+      if (response.data.success && response.data.data.token) {
+        localStorage.setItem('token', response.data.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        setUser(response.data.data.user);
+        return response.data.data.user;
+      }
+      throw new Error('Invalid response from server');
     } catch (error) {
-      throw new Error(error.message || 'Registration failed');
+      throw new Error(error.response?.data?.message || 'Registration failed');
     }
   };
 
@@ -64,7 +72,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   if (loading) {
-    return <div>Loading...</div>; // Or your loading component
+    return <div>Loading...</div>;
   }
 
   return (

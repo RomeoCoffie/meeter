@@ -1,6 +1,6 @@
 import api from './api';
 
-class AuthService {
+const AuthService = {
   async login(email, password) {
     try {
       const response = await api.post('/auth/login', { email, password });
@@ -11,7 +11,7 @@ class AuthService {
     } catch (error) {
       throw this.handleError(error);
     }
-  }
+  },
 
   async register(userData) {
     try {
@@ -23,12 +23,12 @@ class AuthService {
     } catch (error) {
       throw this.handleError(error);
     }
-  }
+  },
 
   logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-  }
+  },
 
   handleError(error) {
     if (error.response) {
@@ -42,6 +42,6 @@ class AuthService {
       throw new Error('Request failed. Please try again.');
     }
   }
-}
+};
 
-export default new AuthService(); 
+export default AuthService; 

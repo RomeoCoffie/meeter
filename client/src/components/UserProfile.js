@@ -1,35 +1,96 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TextField, Button, RadioGroup, FormControlLabel, Radio, Paper } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api.config';
+import LoadingSpinner from './LoadingSpinner';
 
 function UserProfile() {
   const { user } = useAuth();
-  const [userType, setUserType] = useState('freelancer');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [userType, setUserType] = useState(user?.userType || 'freelancer');
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     phone: '',
-    // Freelancer specific fields
     skills: '',
     hourlyRate: '',
     experience: '',
-    // Client specific fields
     company: '',
     industry: '',
     projectDescription: ''
   });
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      console.log('Fetching user profile...');
+      const response = await api.get('/users/profile');
+      console.log('Profile data received:', response.data);
+      
+      const profileData = response.data;
+      // Check if we're getting an empty object or null
+      if (!profileData || Object.keys(profileData).length === 0) {
+        console.log('No profile data received');
+        return;
+      }
+
+      setFormData({
+        fullName: profileData.fullName || profileData.full_name || '',
+        email: profileData.email || '',
+        phone: profileData.phone || '',
+        skills: profileData.skills || '',
+        hourlyRate: profileData.hourlyRate || profileData.hourly_rate || '',
+        experience: profileData.experience || '',
+        company: profileData.company || '',
+        industry: profileData.industry || '',
+        projectDescription: profileData.projectDescription || profileData.project_description || ''
+      });
+      setUserType(profileData.userType || profileData.user_type || user?.userType || 'freelancer');
+    } catch (error) {
+      console.error('Error fetching profile:', error.response || error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: Add API call to update profile
-    console.log('Form submitted:', formData);
+    setIsSaving(true);
+    try {
+      console.log('Saving profile data:', { ...formData, userType });
+      const response = await api.put('/users/profile', {
+        ...formData,
+        userType
+      });
+      console.log('Save response:', response.data);
+      
+      // Verify the save was successful by fetching the profile again
+      await fetchUserProfile();
+      
+      alert('Profile updated successfully!');
+    } catch (error) {
+      console.error('Error saving profile:', error.response || error);
+      alert('Error updating profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    console.log('Field changed:', name, value);
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   return (
@@ -47,7 +108,6 @@ function UserProfile() {
       </RadioGroup>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Common Fields */}
         <TextField
           fullWidth
           label="Full Name"
@@ -56,6 +116,7 @@ function UserProfile() {
           onChange={handleChange}
           required
         />
+
         <TextField
           fullWidth
           label="Email"
@@ -65,16 +126,16 @@ function UserProfile() {
           onChange={handleChange}
           required
         />
+
         <TextField
           fullWidth
-          label="Phone"
+          label="Phone Number"
           name="phone"
           value={formData.phone}
           onChange={handleChange}
         />
 
-        {/* Conditional Fields */}
-        {userType === 'freelancer' ? (
+        {userType === 'freelancer' && (
           <>
             <TextField
               fullWidth
@@ -82,8 +143,10 @@ function UserProfile() {
               name="skills"
               value={formData.skills}
               onChange={handleChange}
-              required
+              multiline
+              rows={2}
             />
+
             <TextField
               fullWidth
               label="Hourly Rate ($)"
@@ -91,8 +154,8 @@ function UserProfile() {
               type="number"
               value={formData.hourlyRate}
               onChange={handleChange}
-              required
             />
+
             <TextField
               fullWidth
               label="Years of Experience"
@@ -100,35 +163,36 @@ function UserProfile() {
               type="number"
               value={formData.experience}
               onChange={handleChange}
-              required
             />
           </>
-        ) : (
+        )}
+
+        {userType === 'client' && (
           <>
             <TextField
               fullWidth
-              label="Company Name"
+              label="Company"
               name="company"
               value={formData.company}
               onChange={handleChange}
-              required
             />
+
             <TextField
               fullWidth
               label="Industry"
               name="industry"
               value={formData.industry}
               onChange={handleChange}
-              required
             />
+
             <TextField
               fullWidth
-              multiline
-              rows={4}
               label="Project Description"
               name="projectDescription"
               value={formData.projectDescription}
               onChange={handleChange}
+              multiline
+              rows={4}
             />
           </>
         )}
@@ -137,9 +201,10 @@ function UserProfile() {
           type="submit"
           variant="contained"
           color="primary"
-          className="w-full"
+          fullWidth
+          disabled={isSaving}
         >
-          Save Profile
+          {isSaving ? 'Saving...' : 'Save Profile'}
         </Button>
       </form>
     </Paper>

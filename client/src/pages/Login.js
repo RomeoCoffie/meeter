@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { validateEmail, validatePassword } from '../utils/validation';
 import LoadingSpinner from '../components/LoadingSpinner';
-import authService from '../services/auth.service';
 import { motion } from 'framer-motion';
 
 function Login() {
@@ -27,7 +26,6 @@ function Login() {
       ...prev,
       [name]: value
     }));
-    // Clear specific field error when user starts typing
     setErrors(prev => ({
       ...prev,
       [name]: '',
@@ -52,13 +50,18 @@ function Login() {
 
     setIsLoading(true);
     try {
-      const response = await authService.login(formData.email, formData.password);
-      login(response.user);
-      navigate('/dashboard');
+      const response = await login({
+        email: formData.email,
+        password: formData.password
+      });
+      if (response) {
+        navigate('/dashboard');
+      }
     } catch (err) {
+      console.error('Login error:', err);
       setErrors(prev => ({
         ...prev,
-        general: err.message
+        general: err.message || 'Login failed'
       }));
     } finally {
       setIsLoading(false);

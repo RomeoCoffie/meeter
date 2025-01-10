@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
 
 function Register() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, register } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -63,13 +63,12 @@ function Register() {
 
     setIsLoading(true);
     try {
-      const response = await authService.register({
+      await register({
         fullName: formData.fullName,
         email: formData.email,
         password: formData.password,
         userType: formData.userType
       });
-      login(response.user);
       navigate('/dashboard');
     } catch (err) {
       setErrors(prev => ({
