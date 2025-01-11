@@ -2,119 +2,178 @@ const { pool } = require('../config/db');
 const bcrypt = require('bcryptjs');
 
 // @desc    Get user profile
-// @route   GET /api/users/profile
+// @route   GET /users/profile
 // @access  Private
 const getUserProfile = async (req, res) => {
-  const [user] = await pool.query(
-    `SELECT 
-      id, full_name, email, user_type, 
-      created_at,
-      (SELECT COUNT(*) FROM meetings WHERE created_by = users.id) as meetings_created,
-      (SELECT COUNT(*) FROM meeting_participants WHERE user_id = users.id) as meetings_participated
-    FROM users 
-    WHERE id = ?`,
-    [req.user.id]
-  );
-
-  if (!user[0]) {
-    res.status(404);
-    throw new Error('User not found');
-  }
-
-  res.json(user[0]);
-};
-
-// @desc    Update user profile
-// @route   PUT /api/users/profile
-// @access  Private
-const updateUserProfile = async (req, res) => {
-  const { fullName, email, currentPassword, newPassword } = req.body;
-
-  const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
-
-    // Check if email is already taken by another user
-    if (email) {
-      const [existingUser] = await connection.query(
-        'SELECT id FROM users WHERE email = ? AND id != ?',
-        [email, req.user.id]
-      );
-
-      if (existingUser.length > 0) {
-        res.status(400);
-        throw new Error('Email already in use');
-      }
-    }
-
-    let updateQuery = 'UPDATE users SET ';
-    const updateParams = [];
-
-    if (fullName) {
-      updateQuery += 'full_name = ?, ';
-      updateParams.push(fullName);
-    }
-
-    if (email) {
-      updateQuery += 'email = ?, ';
-      updateParams.push(email);
-    }
-
-    // Handle password update
-    if (currentPassword && newPassword) {
-      const [user] = await connection.query(
-        'SELECT password FROM users WHERE id = ?',
-        [req.user.id]
-      );
-
-      const isMatch = await bcrypt.compare(currentPassword, user[0].password);
-      if (!isMatch) {
-        res.status(400);
-        throw new Error('Current password is incorrect');
-      }
-
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(newPassword, salt);
-      updateQuery += 'password = ?, ';
-      updateParams.push(hashedPassword);
-    }
-
-    // Remove trailing comma and add WHERE clause
-    updateQuery = updateQuery.slice(0, -2) + ' WHERE id = ?';
-    updateParams.push(req.user.id);
-
-    await connection.query(updateQuery, updateParams);
-    await connection.commit();
-
-    // Get updated user profile
-    const [updatedUser] = await pool.query(
-      'SELECT id, full_name, email, user_type FROM users WHERE id = ?',
+    const result = await pool.query(
+      `SELECT 
+        id, full_name, email, user_type, 
+        created_at,
+        (SELECT COUNT(*) FROM meetings WHERE created_by = users.id) as meetings_created,
+        (SELECT COUNT(*) FROM meeting_participants WHERE user_id = users.id) as meetings_participated
+      FROM users 
+      WHERE id = $1`,
       [req.user.id]
     );
 
-    res.json(updatedUser[0]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
   } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
+    console.error('Error getting profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving profile'
+    });
+  }
+};
+
+// @desc    Update user profile
+// @route   PUT /users/profile
+// @access  Private
+const updateUserProfile = async (req, res) => {
+  const { fullName, email, currentPassword, newPassword, userType } = req.body;
+
+  try {
+    // Start a transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Check if email is already taken by another user
+      if (email) {
+        const existingUser = await client.query(
+          'SELECT id FROM users WHERE email = $1 AND id != $2',
+          [email, req.user.id]
+        );
+
+        if (existingUser.rows.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Email already in use'
+          });
+        }
+      }
+
+      let updateQuery = 'UPDATE users SET ';
+      const updateValues = [];
+      const queryParams = [];
+      let paramCount = 1;
+
+      if (fullName) {
+        updateValues.push(`full_name = $${paramCount}`);
+        queryParams.push(fullName);
+        paramCount++;
+      }
+
+      if (email) {
+        updateValues.push(`email = $${paramCount}`);
+        queryParams.push(email);
+        paramCount++;
+      }
+
+      if (userType) {
+        updateValues.push(`user_type = $${paramCount}`);
+        queryParams.push(userType);
+        paramCount++;
+      }
+
+      // Handle password update
+      if (currentPassword && newPassword) {
+        const user = await client.query(
+          'SELECT password FROM users WHERE id = $1',
+          [req.user.id]
+        );
+
+        const isMatch = await bcrypt.compare(currentPassword, user.rows[0].password);
+        if (!isMatch) {
+          return res.status(400).json({
+            success: false,
+            message: 'Current password is incorrect'
+          });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+        updateValues.push(`password = $${paramCount}`);
+        queryParams.push(hashedPassword);
+        paramCount++;
+      }
+
+      if (updateValues.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No fields to update'
+        });
+      }
+
+      // Add WHERE clause
+      updateQuery += updateValues.join(', ') + ` WHERE id = $${paramCount}`;
+      queryParams.push(req.user.id);
+
+      // Execute update
+      await client.query(updateQuery, queryParams);
+
+      // Get updated user profile
+      const result = await client.query(
+        'SELECT id, full_name, email, user_type FROM users WHERE id = $1',
+        [req.user.id]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        success: true,
+        data: result.rows[0]
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating profile'
+    });
   }
 };
 
 // @desc    Get user's meeting statistics
-// @route   GET /api/users/stats
+// @route   GET /users/stats
 // @access  Private
 const getUserStats = async (req, res) => {
-  const [stats] = await pool.query(
-    `SELECT 
-      (SELECT COUNT(*) FROM meetings WHERE created_by = ?) as meetings_created,
-      (SELECT COUNT(*) FROM meeting_participants WHERE user_id = ? AND status = 'accepted') as meetings_accepted,
-      (SELECT COUNT(*) FROM meeting_participants WHERE user_id = ? AND status = 'pending') as meetings_pending
-    FROM dual`,
-    [req.user.id, req.user.id, req.user.id]
-  );
+  try {
+    const result = await pool.query(
+      `SELECT 
+        (SELECT COUNT(*) FROM meetings WHERE created_by = $1) as meetings_created,
+        (SELECT COUNT(*) FROM meeting_participants WHERE user_id = $1 AND status = 'accepted') as meetings_accepted,
+        (SELECT COUNT(*) FROM meeting_participants WHERE user_id = $1 AND status = 'pending') as meetings_pending`,
+      [req.user.id]
+    );
 
-  res.json(stats[0]);
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error getting stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving stats'
+    });
+  }
 };
 
 module.exports = {

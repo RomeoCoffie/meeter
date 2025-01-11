@@ -15,21 +15,25 @@ const app = express();
 // CORS configuration
 const corsOptions = {
   origin: ['http://localhost:3000', 'https://memeet.netlify.app'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
   credentials: true,
-  optionsSuccessStatus: 200
+  maxAge: 86400
 };
 
-// Middleware
+// Apply CORS before other middleware
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
+
+// Other middleware
 app.use(express.json());
 app.use(morgan('dev'));
 
 // Routes
 app.use('/auth', require('./routes/auth.routes'));
-app.use('/meetings', require('./routes/meeting.routes'));
 app.use('/users', require('./routes/user.routes'));
+app.use('/meetings', require('./routes/meeting.routes'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
