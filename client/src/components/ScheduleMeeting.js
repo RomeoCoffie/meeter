@@ -20,7 +20,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import api from '../services/api.config';
 import LoadingSpinner from './LoadingSpinner';
 import { isWithinInterval, addMinutes } from 'date-fns';
-import { Check as CheckIcon, Close as CloseIcon } from '@mui/icons-material';
+import { Check as CheckIcon, Close as CloseIcon, HourglassEmpty as PendingIcon, Person as PersonIcon } from '@mui/icons-material';
 
 function ScheduleMeeting() {
   const { currentUser } = useAuth();
@@ -398,54 +398,73 @@ function ScheduleMeeting() {
                 <ListItem 
                   key={meeting.id} 
                   divider
-                  className="flex flex-col items-stretch"
+                  className="flex flex-col items-stretch p-4"
                 >
                   <ListItemText
                     primary={
-                      <div className="flex justify-between items-center">
-                        <span>{meeting.title}</span>
+                      <div className="flex justify-between items-center mb-2">
+                        <Typography variant="h6" component="span">
+                          {meeting.title}
+                        </Typography>
                         {meeting.created_by === currentUser?.id && (
-                          <Typography variant="caption" color="textSecondary">
-                            (Organizer)
+                          <Typography 
+                            variant="caption" 
+                            color="primary"
+                            className="flex items-center gap-1"
+                          >
+                            <PersonIcon fontSize="small" />
+                            Organizer
                           </Typography>
                         )}
                       </div>
                     }
                     secondary={
                       <>
-                        <div>
-                          <strong>Date & Time:</strong> {new Date(meeting.start_time).toLocaleString()}
-                        </div>
-                        <div>
-                          <strong>Duration:</strong> {meeting.duration} minutes
-                        </div>
-                        <div>
-                          <strong>Participants:</strong>{' '}
-                          {meeting.participants?.map(p => (
-                            <span key={p.id}>
-                              {p.fullName || p.email}
-                              {' '}
-                              <Typography 
-                                component="span" 
-                                variant="caption"
-                                color={
-                                  p.status === 'accepted' ? 'success.main' : 
-                                  p.status === 'declined' ? 'error.main' : 
-                                  'text.secondary'
-                                }
-                              >
-                                ({p.status})
-                              </Typography>
-                              {', '}
-                            </span>
-                          ))}
-                        </div>
-                        {meeting.description && (
+                        <div className="space-y-2">
                           <div>
-                            <strong>Description:</strong> {meeting.description}
+                            <strong>Date & Time:</strong>{' '}
+                            {new Date(meeting.start_time).toLocaleString()}
                           </div>
-                        )}
-                        {renderMeetingActions(meeting)}
+                          <div>
+                            <strong>Duration:</strong> {meeting.duration} minutes
+                          </div>
+                          {meeting.description && (
+                            <div>
+                              <strong>Description:</strong> {meeting.description}
+                            </div>
+                          )}
+                          
+                          <div className="mt-4">
+                            <Typography variant="subtitle2" gutterBottom>
+                              Participants:
+                            </Typography>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {meeting.participants?.map(p => (
+                                <div 
+                                  key={p.id}
+                                  className="flex items-center gap-2 p-2 rounded-lg bg-gray-50"
+                                >
+                                  <div className="flex-1">
+                                    <Typography variant="body2">
+                                      {p.fullName || p.email}
+                                    </Typography>
+                                  </div>
+                                  <div>
+                                    {p.status === 'accepted' ? (
+                                      <CheckIcon color="success" fontSize="small" titleAccess="Accepted" />
+                                    ) : p.status === 'declined' ? (
+                                      <CloseIcon color="error" fontSize="small" titleAccess="Declined" />
+                                    ) : (
+                                      <PendingIcon color="action" fontSize="small" titleAccess="Pending" />
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {renderMeetingActions(meeting)}
+                        </div>
                       </>
                     }
                   />
