@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL,
+  baseURL: process.env.REACT_APP_API_URL || 'https://meeter-ikr9.onrender.com',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -14,9 +14,14 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Ensure data is properly stringified for POST requests
+    if (config.method === 'post' && config.data) {
+      config.data = JSON.stringify(config.data);
+    }
     return config;
   },
   (error) => {
+    console.error('Request error:', error);
     return Promise.reject(error);
   }
 );
@@ -25,6 +30,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    console.error('Response error:', error);
     if (error.response) {
       // Handle token expiration
       if (error.response.status === 401) {

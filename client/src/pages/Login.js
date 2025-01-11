@@ -20,9 +20,10 @@ function Login() {
     setIsLoading(true);
 
     try {
-      await login(formData.email, formData.password);
+      await login(formData);
       navigate('/dashboard');
     } catch (err) {
+      console.error('Login error:', err);
       setError(err.message || 'Login failed');
     } finally {
       setIsLoading(false);
