@@ -93,13 +93,13 @@ function ScheduleMeeting() {
         fetchUsers()
       ]);
       
-      if (meetingsResponse) {
-        setMeetings(meetingsResponse.data.meetings || []);
+      if (meetingsResponse?.data?.meetings) {
+        setMeetings(meetingsResponse.data.meetings);
       }
       
-      if (usersResponse) {
-        console.log('Users fetched:', usersResponse.data);
-        setUsers(usersResponse.data || []);
+      if (usersResponse?.data) {
+        console.log('Setting users:', usersResponse.data);
+        setUsers(usersResponse.data);
       }
     } catch (error) {
       console.error('Error loading initial data:', error);
@@ -170,12 +170,14 @@ function ScheduleMeeting() {
   const fetchUsers = async () => {
     try {
       console.log('Fetching users...');
-      const response = await api.get('/users/list'); // Updated endpoint
+      const response = await api.get('/users/list');
       console.log('Users response:', response.data);
       if (response.data && response.data.success) {
-        return {
-          data: response.data.data.filter(user => user.id !== currentUser.id) // Filter out current user
-        };
+        // Only filter if currentUser exists and has an id
+        const users = currentUser?.id 
+          ? response.data.data.filter(user => user.id !== currentUser.id)
+          : response.data.data;
+        return { data: users };
       }
       return null;
     } catch (error) {
