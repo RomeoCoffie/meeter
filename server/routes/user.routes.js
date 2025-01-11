@@ -10,7 +10,8 @@ const {
 const {
   getUserProfile,
   updateUserProfile,
-  getUserStats
+  getUserStats,
+  getAllUsers
 } = require('../controllers/user.controller');
 
 router.use(protect);
@@ -36,7 +37,10 @@ router.put(
 );
 router.get('/stats', getUserStats);
 
-// Availability routes (existing)
+// Get all users
+router.get('/list', getAllUsers);
+
+// Availability routes
 router.post(
   '/availability',
   [

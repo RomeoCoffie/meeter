@@ -244,8 +244,47 @@ const getUserStats = async (req, res) => {
   }
 };
 
+// @desc    Get all users except current user
+// @route   GET /users/list
+// @access  Private
+const getAllUsers = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        id, full_name, email, user_type,
+        (
+          SELECT json_agg(date)
+          FROM user_availability
+          WHERE user_id = users.id AND is_available = false
+        ) as unavailable_dates
+      FROM users 
+      WHERE id != $1
+      ORDER BY full_name`,
+      [req.user.id]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows.map(user => ({
+        id: user.id,
+        fullName: user.full_name,
+        email: user.email,
+        userType: user.user_type,
+        unavailableDates: user.unavailable_dates || []
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving users'
+    });
+  }
+};
+
 module.exports = {
   getUserProfile,
   updateUserProfile,
-  getUserStats
+  getUserStats,
+  getAllUsers
 }; 

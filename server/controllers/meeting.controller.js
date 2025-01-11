@@ -4,7 +4,7 @@ const { pool } = require('../config/db');
 // @route   POST /api/meetings
 // @access  Private
 const createMeeting = async (req, res) => {
-  const { title, description, startTime, duration, participants } = req.body;
+  const { title, description, datetime, duration, participants } = req.body;
   const client = await pool.connect();
 
   try {
@@ -13,21 +13,23 @@ const createMeeting = async (req, res) => {
     // Create meeting
     const result = await client.query(
       'INSERT INTO meetings (title, description, start_time, duration, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [title, description, startTime, duration, req.user.id]
+      [title, description, datetime, duration, req.user.id]
     );
 
     const meetingId = result.rows[0].id;
 
     // Add participants
     if (participants && participants.length > 0) {
-      const participantValues = participants.map(userId => 
-        `(${meetingId}, ${userId})`
+      const participantValues = participants.map((userId, index) => 
+        `($${index * 2 + 1}, $${index * 2 + 2})`
       ).join(', ');
+      
+      const participantParams = participants.flatMap(userId => [meetingId, userId]);
       
       await client.query(`
         INSERT INTO meeting_participants (meeting_id, user_id)
         VALUES ${participantValues}
-      `);
+      `, participantParams);
     }
 
     await client.query('COMMIT');
@@ -36,7 +38,12 @@ const createMeeting = async (req, res) => {
     const meetingResult = await client.query(`
       SELECT 
         m.*,
-        string_agg(u.full_name, ', ') as participant_names
+        string_agg(u.full_name, ', ') as participant_names,
+        json_agg(json_build_object(
+          'id', u.id,
+          'fullName', u.full_name,
+          'email', u.email
+        )) as participants
       FROM meetings m 
       LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id 
       LEFT JOIN users u ON mp.user_id = u.id 

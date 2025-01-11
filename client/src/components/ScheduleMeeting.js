@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { 
   TextField, 
   Button, 
@@ -21,6 +22,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { isWithinInterval, addMinutes } from 'date-fns';
 
 function ScheduleMeeting() {
+  const { currentUser } = useAuth();
   const [meetings, setMeetings] = useState([]);
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -168,9 +170,14 @@ function ScheduleMeeting() {
   const fetchUsers = async () => {
     try {
       console.log('Fetching users...');
-      const response = await api.get('/users/all'); // Make sure this endpoint exists in your backend
+      const response = await api.get('/users/list'); // Updated endpoint
       console.log('Users response:', response.data);
-      return response;
+      if (response.data && response.data.success) {
+        return {
+          data: response.data.data.filter(user => user.id !== currentUser.id) // Filter out current user
+        };
+      }
+      return null;
     } catch (error) {
       console.error('Error fetching users:', error);
       return null;

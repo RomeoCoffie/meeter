@@ -16,7 +16,7 @@ router.post(
   '/',
   [
     body('title').notEmpty().withMessage('Title is required'),
-    body('startTime').isISO8601().withMessage('Valid start time is required'),
+    body('datetime').isISO8601().withMessage('Valid date and time is required'),
     body('duration').isInt({ min: 15 }).withMessage('Duration must be at least 15 minutes'),
     body('participants').isArray().withMessage('Participants must be an array'),
     validate
