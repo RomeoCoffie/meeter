@@ -244,7 +244,7 @@ function ScheduleMeeting() {
   const renderMeetingActions = (meeting) => {
     // Check if current user is a participant (not the creator)
     const isParticipant = meeting.participants?.some(
-      p => p.id === currentUser?.id && p.id !== meeting.created_by
+      p => p.id === currentUser?.id
     );
     
     if (!isParticipant) {
@@ -253,11 +253,11 @@ function ScheduleMeeting() {
 
     const userStatus = meeting.participants?.find(
       p => p.id === currentUser?.id
-    )?.status;
+    )?.status || 'pending';
 
     if (userStatus === 'pending') {
       return (
-        <div className="flex gap-2 mt-2">
+        <div className="flex gap-2 mt-4 justify-end">
           <Button
             size="small"
             variant="contained"
@@ -281,9 +281,18 @@ function ScheduleMeeting() {
     }
 
     return (
-      <div className="mt-2">
-        <Typography variant="body2" color={userStatus === 'accepted' ? 'success.main' : 'error.main'}>
-          Status: {userStatus?.charAt(0).toUpperCase() + userStatus?.slice(1)}
+      <div className="mt-4 text-right">
+        <Typography 
+          variant="body2" 
+          color={userStatus === 'accepted' ? 'success.main' : 'error.main'}
+          className="flex items-center justify-end gap-2"
+        >
+          Your Response: {userStatus.charAt(0).toUpperCase() + userStatus.slice(1)}
+          {userStatus === 'accepted' ? (
+            <CheckIcon fontSize="small" />
+          ) : (
+            <CloseIcon fontSize="small" />
+          )}
         </Typography>
       </div>
     );
