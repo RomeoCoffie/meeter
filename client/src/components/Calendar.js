@@ -41,12 +41,18 @@ function Calendar() {
         }
       });
 
-      const unavailableDates = response.data
-        .filter(date => !date.is_available)
-        .map(date => date.date);
-      setSelectedDates(unavailableDates);
+      if (response.data && response.data.success && response.data.data) {
+        const unavailableDates = response.data.data
+          .filter(date => !date.is_available)
+          .map(date => date.date);
+        setSelectedDates(unavailableDates);
+      } else {
+        console.log('No availability data received:', response.data);
+        setSelectedDates([]);
+      }
     } catch (error) {
       console.error('Error fetching availability:', error);
+      setSelectedDates([]);
     } finally {
       setIsLoading(false);
     }
@@ -55,14 +61,19 @@ function Calendar() {
   const handleSaveAvailability = async () => {
     setIsSaving(true);
     try {
-      await api.post('/users/availability', {
+      const response = await api.post('/users/availability', {
         dates: selectedDates,
         isAvailable: false
       });
-      // Show success message
+
+      if (response.data && response.data.success) {
+        alert('Availability saved successfully!');
+      } else {
+        throw new Error(response.data?.message || 'Failed to save availability');
+      }
     } catch (error) {
       console.error('Error saving availability:', error);
-      // Show error message
+      alert('Error saving availability. Please try again.');
     } finally {
       setIsSaving(false);
     }

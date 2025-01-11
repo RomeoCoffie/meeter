@@ -84,6 +84,7 @@ const updateUserProfile = async (req, res) => {
       const queryParams = [];
       let paramCount = 1;
 
+      // Common fields for both user types
       if (fullName) {
         updateValues.push(`full_name = $${paramCount}`);
         queryParams.push(fullName);
@@ -102,47 +103,52 @@ const updateUserProfile = async (req, res) => {
         paramCount++;
       }
 
-      // Add new profile fields
       if (phone !== undefined) {
         updateValues.push(`phone = $${paramCount}`);
         queryParams.push(phone);
         paramCount++;
       }
 
-      if (skills !== undefined) {
-        updateValues.push(`skills = $${paramCount}`);
-        queryParams.push(skills);
-        paramCount++;
+      // Freelancer-specific fields
+      if (userType === 'freelancer') {
+        if (skills !== undefined) {
+          updateValues.push(`skills = $${paramCount}`);
+          queryParams.push(skills);
+          paramCount++;
+        }
+
+        if (hourlyRate !== undefined && hourlyRate !== '') {
+          updateValues.push(`hourly_rate = $${paramCount}`);
+          queryParams.push(hourlyRate);
+          paramCount++;
+        }
+
+        if (experience !== undefined && experience !== '') {
+          updateValues.push(`experience = $${paramCount}`);
+          queryParams.push(experience);
+          paramCount++;
+        }
       }
 
-      if (hourlyRate !== undefined) {
-        updateValues.push(`hourly_rate = $${paramCount}`);
-        queryParams.push(hourlyRate);
-        paramCount++;
-      }
+      // Client-specific fields
+      if (userType === 'client') {
+        if (company !== undefined) {
+          updateValues.push(`company = $${paramCount}`);
+          queryParams.push(company);
+          paramCount++;
+        }
 
-      if (experience !== undefined) {
-        updateValues.push(`experience = $${paramCount}`);
-        queryParams.push(experience);
-        paramCount++;
-      }
+        if (industry !== undefined) {
+          updateValues.push(`industry = $${paramCount}`);
+          queryParams.push(industry);
+          paramCount++;
+        }
 
-      if (company !== undefined) {
-        updateValues.push(`company = $${paramCount}`);
-        queryParams.push(company);
-        paramCount++;
-      }
-
-      if (industry !== undefined) {
-        updateValues.push(`industry = $${paramCount}`);
-        queryParams.push(industry);
-        paramCount++;
-      }
-
-      if (projectDescription !== undefined) {
-        updateValues.push(`project_description = $${paramCount}`);
-        queryParams.push(projectDescription);
-        paramCount++;
+        if (projectDescription !== undefined) {
+          updateValues.push(`project_description = $${paramCount}`);
+          queryParams.push(projectDescription);
+          paramCount++;
+        }
       }
 
       // Handle password update
