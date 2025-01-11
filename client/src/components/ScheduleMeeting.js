@@ -160,10 +160,17 @@ function ScheduleMeeting() {
       console.log('Fetching meetings...');
       const response = await api.get('/meetings');
       console.log('Meetings response:', response.data);
-      return response;
+      if (response.data?.success && response.data?.data?.meetings) {
+        // Sort meetings by date, most recent first
+        const sortedMeetings = response.data.data.meetings.sort((a, b) => 
+          new Date(b.start_time) - new Date(a.start_time)
+        );
+        return { data: { meetings: sortedMeetings } };
+      }
+      return { data: { meetings: [] } };
     } catch (error) {
       console.error('Error fetching meetings:', error);
-      return null;
+      return { data: { meetings: [] } };
     }
   };
 
@@ -188,12 +195,16 @@ function ScheduleMeeting() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (formData.participants.length === 0) {
+      alert('Please select at least one participant');
+      return;
+    }
     setIsSaving(true);
     try {
       console.log('Submitting meeting data:', formData);
       const response = await api.post('/meetings', {
         ...formData,
-        participants: formData.participants.map(user => user.id) // Send only user IDs
+        participants: formData.participants.map(user => user.id)
       });
       console.log('Meeting created:', response.data);
       
@@ -263,7 +274,8 @@ function ScheduleMeeting() {
                 <TextField
                   {...params}
                   label="Participants"
-                  required
+                  error={formData.participants.length === 0}
+                  helperText={formData.participants.length === 0 ? "Please select at least one participant" : ""}
                 />
               )}
               renderOption={(props, option) => (
@@ -328,9 +340,20 @@ function ScheduleMeeting() {
                     primary={meeting.title}
                     secondary={
                       <>
-                        <div>{new Date(meeting.datetime).toLocaleString()}</div>
-                        <div>Duration: {meeting.duration} minutes</div>
-                        <div>Participants: {meeting.participants?.length || 0}</div>
+                        <div>
+                          <strong>Date & Time:</strong> {new Date(meeting.start_time).toLocaleString()}
+                        </div>
+                        <div>
+                          <strong>Duration:</strong> {meeting.duration} minutes
+                        </div>
+                        <div>
+                          <strong>Participants:</strong> {meeting.participant_names || 'No participants'}
+                        </div>
+                        {meeting.description && (
+                          <div>
+                            <strong>Description:</strong> {meeting.description}
+                          </div>
+                        )}
                       </>
                     }
                   />
