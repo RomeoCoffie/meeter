@@ -20,6 +20,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import api from '../services/api.config';
 import LoadingSpinner from './LoadingSpinner';
 import { isWithinInterval, addMinutes } from 'date-fns';
+import { Check as CheckIcon, Close as CloseIcon } from '@mui/icons-material';
 
 function ScheduleMeeting() {
   const { currentUser } = useAuth();
@@ -229,6 +230,65 @@ function ScheduleMeeting() {
     }
   };
 
+  const handleMeetingResponse = async (meetingId, status) => {
+    try {
+      await api.put(`/meetings/${meetingId}/status`, { status });
+      await loadInitialData(); // Refresh the meetings list
+      alert(`Meeting ${status} successfully`);
+    } catch (error) {
+      console.error('Error updating meeting status:', error);
+      alert('Error updating meeting status. Please try again.');
+    }
+  };
+
+  const renderMeetingActions = (meeting) => {
+    // Check if current user is a participant (not the creator)
+    const isParticipant = meeting.participants?.some(
+      p => p.id === currentUser?.id && p.id !== meeting.created_by
+    );
+    
+    if (!isParticipant) {
+      return null;
+    }
+
+    const userStatus = meeting.participants?.find(
+      p => p.id === currentUser?.id
+    )?.status;
+
+    if (userStatus === 'pending') {
+      return (
+        <div className="flex gap-2 mt-2">
+          <Button
+            size="small"
+            variant="contained"
+            color="success"
+            startIcon={<CheckIcon />}
+            onClick={() => handleMeetingResponse(meeting.id, 'accepted')}
+          >
+            Accept
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            color="error"
+            startIcon={<CloseIcon />}
+            onClick={() => handleMeetingResponse(meeting.id, 'declined')}
+          >
+            Decline
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-2">
+        <Typography variant="body2" color={userStatus === 'accepted' ? 'success.main' : 'error.main'}>
+          Status: {userStatus?.charAt(0).toUpperCase() + userStatus?.slice(1)}
+        </Typography>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return <LoadingSpinner />;
   }
@@ -335,9 +395,22 @@ function ScheduleMeeting() {
           ) : (
             <List>
               {meetings.map((meeting) => (
-                <ListItem key={meeting.id} divider>
+                <ListItem 
+                  key={meeting.id} 
+                  divider
+                  className="flex flex-col items-stretch"
+                >
                   <ListItemText
-                    primary={meeting.title}
+                    primary={
+                      <div className="flex justify-between items-center">
+                        <span>{meeting.title}</span>
+                        {meeting.created_by === currentUser?.id && (
+                          <Typography variant="caption" color="textSecondary">
+                            (Organizer)
+                          </Typography>
+                        )}
+                      </div>
+                    }
                     secondary={
                       <>
                         <div>
@@ -347,13 +420,32 @@ function ScheduleMeeting() {
                           <strong>Duration:</strong> {meeting.duration} minutes
                         </div>
                         <div>
-                          <strong>Participants:</strong> {meeting.participant_names || 'No participants'}
+                          <strong>Participants:</strong>{' '}
+                          {meeting.participants?.map(p => (
+                            <span key={p.id}>
+                              {p.fullName || p.email}
+                              {' '}
+                              <Typography 
+                                component="span" 
+                                variant="caption"
+                                color={
+                                  p.status === 'accepted' ? 'success.main' : 
+                                  p.status === 'declined' ? 'error.main' : 
+                                  'text.secondary'
+                                }
+                              >
+                                ({p.status})
+                              </Typography>
+                              {', '}
+                            </span>
+                          ))}
                         </div>
                         {meeting.description && (
                           <div>
                             <strong>Description:</strong> {meeting.description}
                           </div>
                         )}
+                        {renderMeetingActions(meeting)}
                       </>
                     }
                   />
