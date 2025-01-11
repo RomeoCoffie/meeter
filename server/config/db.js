@@ -46,7 +46,7 @@ const initializeTables = async () => {
       END $$;
     `);
 
-    // Users table
+    // Users table with additional profile fields
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -54,9 +54,41 @@ const initializeTables = async () => {
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         user_type user_type_enum NOT NULL,
+        phone VARCHAR(50),
+        skills TEXT,
+        hourly_rate DECIMAL(10,2),
+        experience INTEGER,
+        company VARCHAR(255),
+        industry VARCHAR(255),
+        project_description TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Add new columns if they don't exist (for existing tables)
+    const columns = [
+      'phone VARCHAR(50)',
+      'skills TEXT',
+      'hourly_rate DECIMAL(10,2)',
+      'experience INTEGER',
+      'company VARCHAR(255)',
+      'industry VARCHAR(255)',
+      'project_description TEXT'
+    ];
+
+    for (const column of columns) {
+      const columnName = column.split(' ')[0];
+      await client.query(`
+        DO $$ 
+        BEGIN
+          BEGIN
+            ALTER TABLE users ADD COLUMN ${column};
+          EXCEPTION
+            WHEN duplicate_column THEN null;
+          END;
+        END $$;
+      `);
+    }
 
     // Meetings table
     await client.query(`

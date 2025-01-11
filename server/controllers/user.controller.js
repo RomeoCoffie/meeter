@@ -9,6 +9,8 @@ const getUserProfile = async (req, res) => {
     const result = await pool.query(
       `SELECT 
         id, full_name, email, user_type, 
+        phone, skills, hourly_rate, experience,
+        company, industry, project_description,
         created_at,
         (SELECT COUNT(*) FROM meetings WHERE created_by = users.id) as meetings_created,
         (SELECT COUNT(*) FROM meeting_participants WHERE user_id = users.id) as meetings_participated
@@ -41,7 +43,20 @@ const getUserProfile = async (req, res) => {
 // @route   PUT /users/profile
 // @access  Private
 const updateUserProfile = async (req, res) => {
-  const { fullName, email, currentPassword, newPassword, userType } = req.body;
+  const { 
+    fullName, 
+    email, 
+    currentPassword, 
+    newPassword, 
+    userType,
+    phone,
+    skills,
+    hourlyRate,
+    experience,
+    company,
+    industry,
+    projectDescription
+  } = req.body;
 
   try {
     // Start a transaction
@@ -87,6 +102,49 @@ const updateUserProfile = async (req, res) => {
         paramCount++;
       }
 
+      // Add new profile fields
+      if (phone !== undefined) {
+        updateValues.push(`phone = $${paramCount}`);
+        queryParams.push(phone);
+        paramCount++;
+      }
+
+      if (skills !== undefined) {
+        updateValues.push(`skills = $${paramCount}`);
+        queryParams.push(skills);
+        paramCount++;
+      }
+
+      if (hourlyRate !== undefined) {
+        updateValues.push(`hourly_rate = $${paramCount}`);
+        queryParams.push(hourlyRate);
+        paramCount++;
+      }
+
+      if (experience !== undefined) {
+        updateValues.push(`experience = $${paramCount}`);
+        queryParams.push(experience);
+        paramCount++;
+      }
+
+      if (company !== undefined) {
+        updateValues.push(`company = $${paramCount}`);
+        queryParams.push(company);
+        paramCount++;
+      }
+
+      if (industry !== undefined) {
+        updateValues.push(`industry = $${paramCount}`);
+        queryParams.push(industry);
+        paramCount++;
+      }
+
+      if (projectDescription !== undefined) {
+        updateValues.push(`project_description = $${paramCount}`);
+        queryParams.push(projectDescription);
+        paramCount++;
+      }
+
       // Handle password update
       if (currentPassword && newPassword) {
         const user = await client.query(
@@ -125,7 +183,11 @@ const updateUserProfile = async (req, res) => {
 
       // Get updated user profile
       const result = await client.query(
-        'SELECT id, full_name, email, user_type FROM users WHERE id = $1',
+        `SELECT 
+          id, full_name, email, user_type,
+          phone, skills, hourly_rate, experience,
+          company, industry, project_description
+        FROM users WHERE id = $1`,
         [req.user.id]
       );
 
