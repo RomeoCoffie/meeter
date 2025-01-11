@@ -27,27 +27,23 @@ function UserProfile() {
       const response = await api.get('/users/profile');
       console.log('Profile data received:', response.data);
       
-      const profileData = response.data;
-      // Check if we're getting an empty object or null
-      if (!profileData || Object.keys(profileData).length === 0) {
-        console.log('No profile data received');
-        return;
+      if (response.data && response.data.data) {
+        const profileData = response.data.data;
+        setFormData({
+          fullName: profileData.full_name || '',
+          email: profileData.email || '',
+          phone: profileData.phone || '',
+          skills: profileData.skills || '',
+          hourlyRate: profileData.hourly_rate || '',
+          experience: profileData.experience || '',
+          company: profileData.company || '',
+          industry: profileData.industry || '',
+          projectDescription: profileData.project_description || ''
+        });
+        setUserType(profileData.user_type || user?.userType || 'freelancer');
       }
-
-      setFormData({
-        fullName: profileData.fullName || profileData.full_name || '',
-        email: profileData.email || '',
-        phone: profileData.phone || '',
-        skills: profileData.skills || '',
-        hourlyRate: profileData.hourlyRate || profileData.hourly_rate || '',
-        experience: profileData.experience || '',
-        company: profileData.company || '',
-        industry: profileData.industry || '',
-        projectDescription: profileData.projectDescription || profileData.project_description || ''
-      });
-      setUserType(profileData.userType || profileData.user_type || user?.userType || 'freelancer');
     } catch (error) {
-      console.error('Error fetching profile:', error.response || error);
+      console.error('Error fetching profile:', error);
     } finally {
       setIsLoading(false);
     }
@@ -61,28 +57,29 @@ function UserProfile() {
     e.preventDefault();
     setIsSaving(true);
     try {
-      console.log('Saving profile data:', { ...formData, userType });
-      const response = await api.put('/users/profile', {
+      const updateData = {
         ...formData,
         userType
-      });
+      };
+      console.log('Saving profile data:', updateData);
+      
+      const response = await api.put('/users/profile', updateData);
       console.log('Save response:', response.data);
       
-      // Verify the save was successful by fetching the profile again
-      await fetchUserProfile();
-      
-      alert('Profile updated successfully!');
+      if (response.data.success) {
+        // Fetch the updated profile data
+        await fetchUserProfile();
+        alert('Profile updated successfully!');
+      } else {
+        throw new Error(response.data.message || 'Failed to update profile');
+      }
     } catch (error) {
-      console.error('Error saving profile:', error.response || error);
+      console.error('Error saving profile:', error);
       alert('Error updating profile. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
-
-  if (isLoading) {
-    return <LoadingSpinner />;
-  }
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -92,6 +89,10 @@ function UserProfile() {
       [name]: value
     }));
   };
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <Paper className="p-6 max-w-2xl mx-auto">

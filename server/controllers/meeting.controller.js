@@ -5,43 +5,59 @@ const { pool } = require('../config/db');
 // @access  Private
 const createMeeting = async (req, res) => {
   const { title, description, startTime, duration, participants } = req.body;
+  const client = await pool.connect();
 
-  const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
+    await client.query('BEGIN');
 
     // Create meeting
-    const [result] = await connection.query(
-      'INSERT INTO meetings (title, description, start_time, duration, created_by) VALUES (?, ?, ?, ?, ?)',
+    const result = await client.query(
+      'INSERT INTO meetings (title, description, start_time, duration, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id',
       [title, description, startTime, duration, req.user.id]
     );
 
-    // Add participants
-    const participantValues = participants.map(userId => [result.insertId, userId]);
-    await connection.query(
-      'INSERT INTO meeting_participants (meeting_id, user_id) VALUES ?',
-      [participantValues]
-    );
+    const meetingId = result.rows[0].id;
 
-    await connection.commit();
+    // Add participants
+    if (participants && participants.length > 0) {
+      const participantValues = participants.map(userId => 
+        `(${meetingId}, ${userId})`
+      ).join(', ');
+      
+      await client.query(`
+        INSERT INTO meeting_participants (meeting_id, user_id)
+        VALUES ${participantValues}
+      `);
+    }
+
+    await client.query('COMMIT');
 
     // Get meeting with participants
-    const [meeting] = await pool.query(
-      `SELECT m.*, GROUP_CONCAT(u.full_name) as participant_names 
-       FROM meetings m 
-       LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id 
-       LEFT JOIN users u ON mp.user_id = u.id 
-       WHERE m.id = ? 
-       GROUP BY m.id`,
-      [result.insertId]
+    const meetingResult = await client.query(`
+      SELECT 
+        m.*,
+        string_agg(u.full_name, ', ') as participant_names
+      FROM meetings m 
+      LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id 
+      LEFT JOIN users u ON mp.user_id = u.id 
+      WHERE m.id = $1 
+      GROUP BY m.id`,
+      [meetingId]
     );
 
-    res.status(201).json(meeting[0]);
+    res.status(201).json({
+      success: true,
+      data: meetingResult.rows[0]
+    });
   } catch (error) {
-    await connection.rollback();
-    throw error;
+    await client.query('ROLLBACK');
+    console.error('Error creating meeting:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating meeting'
+    });
   } finally {
-    connection.release();
+    client.release();
   }
 };
 
@@ -58,59 +74,75 @@ const getUserMeetings = async (req, res) => {
     page = 1
   } = req.query;
 
-  let query = `
-    SELECT 
-      m.*, 
-      GROUP_CONCAT(u.full_name) as participant_names,
-      COUNT(*) OVER() as total_count
-    FROM meetings m 
-    LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id 
-    LEFT JOIN users u ON mp.user_id = u.id 
-    WHERE (m.created_by = ? OR mp.user_id = ?)
-  `;
+  try {
+    let query = `
+      SELECT 
+        m.*, 
+        string_agg(u.full_name, ', ') as participant_names,
+        COUNT(*) OVER() as total_count
+      FROM meetings m 
+      LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id 
+      LEFT JOIN users u ON mp.user_id = u.id 
+      WHERE (m.created_by = $1 OR mp.user_id = $1)
+    `;
 
-  const queryParams = [req.user.id, req.user.id];
+    const queryParams = [req.user.id];
+    let paramCount = 2;
 
-  if (search) {
-    query += ` AND (m.title LIKE ? OR m.description LIKE ?)`;
-    queryParams.push(`%${search}%`, `%${search}%`);
-  }
-
-  if (startDate) {
-    query += ` AND m.start_time >= ?`;
-    queryParams.push(startDate);
-  }
-
-  if (endDate) {
-    query += ` AND m.start_time <= ?`;
-    queryParams.push(endDate);
-  }
-
-  if (status) {
-    query += ` AND mp.status = ?`;
-    queryParams.push(status);
-  }
-
-  query += ` GROUP BY m.id ORDER BY m.start_time DESC`;
-  
-  // Add pagination
-  const offset = (page - 1) * limit;
-  query += ` LIMIT ? OFFSET ?`;
-  queryParams.push(parseInt(limit), offset);
-
-  const [meetings] = await pool.query(query, queryParams);
-
-  const totalCount = meetings.length > 0 ? meetings[0].total_count : 0;
-
-  res.json({
-    meetings,
-    pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total: totalCount,
-      pages: Math.ceil(totalCount / limit)
+    if (search) {
+      query += ` AND (m.title ILIKE $${paramCount} OR m.description ILIKE $${paramCount})`;
+      queryParams.push(`%${search}%`);
+      paramCount++;
     }
-  });
+
+    if (startDate) {
+      query += ` AND m.start_time >= $${paramCount}`;
+      queryParams.push(startDate);
+      paramCount++;
+    }
+
+    if (endDate) {
+      query += ` AND m.start_time <= $${paramCount}`;
+      queryParams.push(endDate);
+      paramCount++;
+    }
+
+    if (status) {
+      query += ` AND mp.status = $${paramCount}`;
+      queryParams.push(status);
+      paramCount++;
+    }
+
+    query += ` GROUP BY m.id ORDER BY m.start_time DESC`;
+    
+    // Add pagination
+    const offset = (page - 1) * limit;
+    query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    queryParams.push(parseInt(limit), offset);
+
+    const result = await pool.query(query, queryParams);
+    const meetings = result.rows;
+    const totalCount = meetings.length > 0 ? parseInt(meetings[0].total_count) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        meetings,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: totalCount,
+          pages: Math.ceil(totalCount / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error getting meetings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving meetings'
+    });
+  }
 };
 
 // @desc    Update meeting status
@@ -120,42 +152,66 @@ const updateMeetingStatus = async (req, res) => {
   const { status } = req.body;
   const { id } = req.params;
 
-  await pool.query(
-    'UPDATE meeting_participants SET status = ? WHERE meeting_id = ? AND user_id = ?',
-    [status, id, req.user.id]
-  );
+  try {
+    await pool.query(
+      'UPDATE meeting_participants SET status = $1 WHERE meeting_id = $2 AND user_id = $3',
+      [status, id, req.user.id]
+    );
 
-  res.json({ message: 'Meeting status updated' });
+    res.json({
+      success: true,
+      message: 'Meeting status updated'
+    });
+  } catch (error) {
+    console.error('Error updating meeting status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating meeting status'
+    });
+  }
 };
 
 // @desc    Get meeting details
 // @route   GET /api/meetings/:id
 // @access  Private
 const getMeetingDetails = async (req, res) => {
-  const [meeting] = await pool.query(
-    `SELECT 
-      m.*,
-      JSON_ARRAYAGG(
-        JSON_OBJECT(
-          'id', u.id,
-          'name', u.full_name,
-          'status', mp.status
-        )
-      ) as participants
-    FROM meetings m 
-    LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id 
-    LEFT JOIN users u ON mp.user_id = u.id 
-    WHERE m.id = ?
-    GROUP BY m.id`,
-    [req.params.id]
-  );
+  try {
+    const result = await pool.query(`
+      SELECT 
+        m.*,
+        json_agg(
+          json_build_object(
+            'id', u.id,
+            'name', u.full_name,
+            'status', mp.status
+          )
+        ) as participants
+      FROM meetings m 
+      LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id 
+      LEFT JOIN users u ON mp.user_id = u.id 
+      WHERE m.id = $1
+      GROUP BY m.id`,
+      [req.params.id]
+    );
 
-  if (!meeting[0]) {
-    res.status(404);
-    throw new Error('Meeting not found');
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Meeting not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error getting meeting details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving meeting details'
+    });
   }
-
-  res.json(meeting[0]);
 };
 
 module.exports = {

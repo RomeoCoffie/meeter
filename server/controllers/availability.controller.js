@@ -1,51 +1,79 @@
 const { pool } = require('../config/db');
 
 // @desc    Update user availability
-// @route   POST /api/users/availability
+// @route   POST /availability
 // @access  Private
 const updateAvailability = async (req, res) => {
-  const { dates, isAvailable } = req.body;
-  const userId = req.user.id;
-
-  const connection = await pool.getConnection();
+  const client = await pool.connect();
+  
   try {
-    await connection.beginTransaction();
-
-    // Delete existing availability for these dates
-    await connection.query(
-      'DELETE FROM user_availability WHERE user_id = ? AND date IN (?)',
-      [userId, dates]
+    await client.query('BEGIN');
+    
+    // First, delete existing availability for the dates being updated
+    await client.query(
+      'DELETE FROM user_availability WHERE user_id = $1 AND date = ANY($2::date[])',
+      [req.user.id, req.body.dates]
     );
 
-    // Insert new availability
-    const values = dates.map(date => [userId, date, isAvailable]);
-    await connection.query(
-      'INSERT INTO user_availability (user_id, date, is_available) VALUES ?',
-      [values]
-    );
+    // Then insert new availability records
+    const insertQuery = `
+      INSERT INTO user_availability (user_id, date, is_available)
+      SELECT $1, unnest($2::date[]), $3
+    `;
+    
+    await client.query(insertQuery, [
+      req.user.id,
+      req.body.dates,
+      false // false means the user is unavailable on these dates
+    ]);
 
-    await connection.commit();
-    res.json({ message: 'Availability updated successfully' });
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: 'Availability updated successfully'
+    });
   } catch (error) {
-    await connection.rollback();
-    throw error;
+    await client.query('ROLLBACK');
+    console.error('Error updating availability:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating availability'
+    });
   } finally {
-    connection.release();
+    client.release();
   }
 };
 
 // @desc    Get user availability
-// @route   GET /api/users/availability
+// @route   GET /availability
 // @access  Private
 const getAvailability = async (req, res) => {
-  const { startDate, endDate } = req.query;
+  try {
+    const { startDate, endDate } = req.query;
+    
+    const query = `
+      SELECT date, is_available
+      FROM user_availability
+      WHERE user_id = $1
+        AND date >= $2::date
+        AND date <= $3::date
+      ORDER BY date
+    `;
+    
+    const result = await pool.query(query, [req.user.id, startDate, endDate]);
 
-  const [availability] = await pool.query(
-    'SELECT date, is_available FROM user_availability WHERE user_id = ? AND date BETWEEN ? AND ?',
-    [req.user.id, startDate, endDate]
-  );
-
-  res.json(availability);
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error getting availability:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving availability'
+    });
+  }
 };
 
 module.exports = {
