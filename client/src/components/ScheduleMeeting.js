@@ -29,6 +29,7 @@ function ScheduleMeeting() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [unavailableDates, setUnavailableDates] = useState([]);
+  const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -194,6 +195,49 @@ function ScheduleMeeting() {
     }
   };
 
+  const handleMeetingSelect = (meeting) => {
+    // Only allow editing if user is the creator
+    if (meeting.created_by !== currentUser?.id) {
+      return;
+    }
+    
+    setSelectedMeeting(meeting);
+    setFormData({
+      title: meeting.title,
+      description: meeting.description || '',
+      datetime: new Date(meeting.start_time),
+      duration: meeting.duration,
+      participants: meeting.participants || []
+    });
+  };
+
+  const handleCancel = () => {
+    setSelectedMeeting(null);
+    setFormData({
+      title: '',
+      description: '',
+      datetime: new Date(),
+      duration: 30,
+      participants: []
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!selectedMeeting || !window.confirm('Are you sure you want to cancel this meeting?')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/meetings/${selectedMeeting.id}`);
+      await loadInitialData();
+      handleCancel(); // Reset form
+      alert('Meeting cancelled successfully');
+    } catch (error) {
+      console.error('Error cancelling meeting:', error);
+      alert('Error cancelling meeting. Please try again.');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.participants.length === 0) {
@@ -202,29 +246,32 @@ function ScheduleMeeting() {
     }
     setIsSaving(true);
     try {
-      console.log('Submitting meeting data:', formData);
-      const response = await api.post('/meetings', {
-        ...formData,
-        participants: formData.participants.map(user => user.id)
-      });
-      console.log('Meeting created:', response.data);
+      if (selectedMeeting) {
+        // Update existing meeting
+        const response = await api.put(`/meetings/${selectedMeeting.id}`, {
+          ...formData,
+          participants: formData.participants.map(user => user.id)
+        });
+        console.log('Meeting updated:', response.data);
+      } else {
+        // Create new meeting
+        const response = await api.post('/meetings', {
+          ...formData,
+          participants: formData.participants.map(user => user.id)
+        });
+        console.log('Meeting created:', response.data);
+      }
       
       // Refresh meetings list
       await loadInitialData();
       
       // Reset form
-      setFormData({
-        title: '',
-        description: '',
-        datetime: new Date(),
-        duration: 30,
-        participants: []
-      });
+      handleCancel();
       
-      alert('Meeting scheduled successfully!');
+      alert(selectedMeeting ? 'Meeting updated successfully!' : 'Meeting scheduled successfully!');
     } catch (error) {
-      console.error('Error scheduling meeting:', error);
-      alert('Error scheduling meeting. Please try again.');
+      console.error('Error saving meeting:', error);
+      alert('Error saving meeting. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -306,7 +353,9 @@ function ScheduleMeeting() {
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Paper className="p-6">
-          <Typography variant="h6" className="mb-4">Schedule New Meeting</Typography>
+          <Typography variant="h6" className="mb-4">
+            {selectedMeeting ? 'Edit Meeting' : 'Schedule New Meeting'}
+          </Typography>
           <form onSubmit={handleSubmit} className="space-y-4">
             <TextField
               fullWidth
@@ -385,15 +434,40 @@ function ScheduleMeeting() {
               </Select>
             </FormControl>
 
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              fullWidth
-              disabled={isSaving}
-            >
-              {isSaving ? 'Scheduling...' : 'Schedule Meeting'}
-            </Button>
+            <div className="flex gap-2">
+              {selectedMeeting && (
+                <>
+                  <Button
+                    type="button"
+                    variant="contained"
+                    color="error"
+                    fullWidth
+                    onClick={handleDelete}
+                    disabled={isSaving}
+                  >
+                    Cancel Meeting
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    fullWidth
+                    onClick={handleCancel}
+                    disabled={isSaving}
+                  >
+                    Clear Form
+                  </Button>
+                </>
+              )}
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                fullWidth
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving...' : selectedMeeting ? 'Update Meeting' : 'Schedule Meeting'}
+              </Button>
+            </div>
           </form>
         </Paper>
 
@@ -407,13 +481,29 @@ function ScheduleMeeting() {
                 <ListItem 
                   key={meeting.id} 
                   divider
-                  className="flex flex-col items-stretch p-4"
+                  className={`flex flex-col items-stretch p-4 ${
+                    meeting.created_by === currentUser?.id ? 'cursor-pointer hover:bg-gray-50' : ''
+                  }`}
+                  onClick={() => handleMeetingSelect(meeting)}
                 >
                   <ListItemText
                     primary={
                       <div className="flex justify-between items-center mb-2">
-                        <Typography variant="h6" component="span">
+                        <Typography 
+                          variant="h6" 
+                          component="span"
+                          color={meeting.created_by === currentUser?.id ? 'primary' : 'textPrimary'}
+                        >
                           {meeting.title}
+                          {meeting.created_by === currentUser?.id && (
+                            <Typography 
+                              variant="caption" 
+                              color="primary"
+                              className="ml-2"
+                            >
+                              (Click to edit)
+                            </Typography>
+                          )}
                         </Typography>
                         {meeting.created_by === currentUser?.id && (
                           <Typography 
