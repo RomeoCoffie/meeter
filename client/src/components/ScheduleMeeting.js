@@ -196,15 +196,15 @@ function ScheduleMeeting() {
   };
 
   const handleMeetingSelect = (meeting) => {
-    // Remove the creator-only restriction to allow viewing details
     setSelectedMeeting(meeting);
     
     // Convert the participants array to match the Autocomplete format
+    // Make sure to handle both full participant objects and IDs
     const participantObjects = meeting.participants?.map(p => ({
-      id: p.id,
-      fullName: p.fullName,
-      email: p.email
-    })) || [];
+      id: p.id || p,
+      fullName: p.fullName || users.find(u => u.id === p)?.fullName,
+      email: p.email || users.find(u => u.id === p)?.email
+    })).filter(p => p.id) || [];
 
     setFormData({
       title: meeting.title,
@@ -376,9 +376,7 @@ function ScheduleMeeting() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Paper className="p-6">
           <Typography variant="h6" className="mb-4">
-            {selectedMeeting ? (
-              selectedMeeting.created_by === currentUser?.id ? 'Edit Meeting' : 'Meeting Details'
-            ) : 'Schedule New Meeting'}
+            {selectedMeeting ? 'Edit Meeting' : 'Schedule New Meeting'}
           </Typography>
           <form onSubmit={handleSubmit} className="space-y-4">
             <TextField
@@ -388,7 +386,6 @@ function ScheduleMeeting() {
               value={formData.title}
               onChange={handleChange}
               required
-              disabled={selectedMeeting && selectedMeeting.created_by !== currentUser?.id}
             />
 
             <TextField
@@ -399,7 +396,6 @@ function ScheduleMeeting() {
               name="description"
               value={formData.description}
               onChange={handleChange}
-              disabled={selectedMeeting && selectedMeeting.created_by !== currentUser?.id}
             />
 
             <Autocomplete
@@ -413,7 +409,6 @@ function ScheduleMeeting() {
                   participants: newValue
                 }));
               }}
-              disabled={selectedMeeting && selectedMeeting.created_by !== currentUser?.id}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -438,7 +433,6 @@ function ScheduleMeeting() {
               onChange={handleDateTimeChange}
               className="w-full"
               required
-              disabled={selectedMeeting && selectedMeeting.created_by !== currentUser?.id}
               renderInput={(params) => <TextField {...params} fullWidth />}
               shouldDisableDate={isDateTimeUnavailable}
               minDate={new Date()}
@@ -453,7 +447,6 @@ function ScheduleMeeting() {
                 value={formData.duration}
                 onChange={handleChange}
                 required
-                disabled={selectedMeeting && selectedMeeting.created_by !== currentUser?.id}
               >
                 <MenuItem value={15}>15 minutes</MenuItem>
                 <MenuItem value={30}>30 minutes</MenuItem>
@@ -463,32 +456,29 @@ function ScheduleMeeting() {
             </FormControl>
 
             <div className="flex gap-2">
-              {selectedMeeting && (
+              {selectedMeeting ? (
                 <>
-                  {selectedMeeting.created_by === currentUser?.id && (
-                    <Button
-                      type="button"
-                      variant="contained"
-                      color="error"
-                      fullWidth
-                      onClick={handleDelete}
-                      disabled={isSaving}
-                    >
-                      Cancel Meeting
-                    </Button>
-                  )}
                   <Button
-                    type="button"
-                    variant="outlined"
+                    type="submit"
+                    variant="contained"
+                    color="primary"
                     fullWidth
-                    onClick={handleCancel}
                     disabled={isSaving}
                   >
-                    {selectedMeeting.created_by === currentUser?.id ? 'Clear Form' : 'Close Details'}
+                    {isSaving ? 'Saving...' : 'Update Meeting'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="contained"
+                    color="error"
+                    fullWidth
+                    onClick={handleDelete}
+                    disabled={isSaving}
+                  >
+                    Cancel Meeting
                   </Button>
                 </>
-              )}
-              {(!selectedMeeting || selectedMeeting.created_by === currentUser?.id) && (
+              ) : (
                 <Button
                   type="submit"
                   variant="contained"
@@ -496,7 +486,7 @@ function ScheduleMeeting() {
                   fullWidth
                   disabled={isSaving}
                 >
-                  {isSaving ? 'Saving...' : selectedMeeting ? 'Update Meeting' : 'Schedule Meeting'}
+                  {isSaving ? 'Saving...' : 'Schedule Meeting'}
                 </Button>
               )}
             </div>
