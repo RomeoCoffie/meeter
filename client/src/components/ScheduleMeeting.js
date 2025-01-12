@@ -199,7 +199,6 @@ function ScheduleMeeting() {
     setSelectedMeeting(meeting);
     
     // Convert the participants array to match the Autocomplete format
-    // Make sure to handle both full participant objects and IDs
     const participantObjects = meeting.participants?.map(p => ({
       id: p.id || p,
       fullName: p.fullName || users.find(u => u.id === p)?.fullName,
@@ -231,13 +230,16 @@ function ScheduleMeeting() {
       return;
     }
 
-    // Only allow deletion if user is the creator
-    if (selectedMeeting.created_by !== currentUser?.id) {
-      alert('Only the meeting organizer can cancel this meeting.');
+    // Allow both organizer and participants to cancel
+    const isOrganizer = selectedMeeting.created_by === currentUser?.id;
+    const isParticipant = selectedMeeting.participants?.some(p => p.id === currentUser?.id);
+    
+    if (!isOrganizer && !isParticipant) {
+      alert('You must be either the organizer or a participant to cancel this meeting.');
       return;
     }
 
-    if (!window.confirm('Are you sure you want to cancel this meeting?')) {
+    if (!window.confirm('Are you sure you want to cancel this meeting? This will remove it for all participants.')) {
       return;
     }
 
@@ -255,10 +257,15 @@ function ScheduleMeeting() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate if user has permission to edit
-    if (selectedMeeting && selectedMeeting.created_by !== currentUser?.id) {
-      alert('Only the meeting organizer can edit this meeting.');
-      return;
+    // Allow both organizer and participants to update
+    if (selectedMeeting) {
+      const isOrganizer = selectedMeeting.created_by === currentUser?.id;
+      const isParticipant = selectedMeeting.participants?.some(p => p.id === currentUser?.id);
+      
+      if (!isOrganizer && !isParticipant) {
+        alert('You must be either the organizer or a participant to update this meeting.');
+        return;
+      }
     }
 
     if (formData.participants.length === 0) {
@@ -284,12 +291,8 @@ function ScheduleMeeting() {
         console.log('Meeting created:', response.data);
       }
       
-      // Refresh meetings list
       await loadInitialData();
-      
-      // Reset form
       handleCancel();
-      
       alert(selectedMeeting ? 'Meeting updated successfully!' : 'Meeting scheduled successfully!');
     } catch (error) {
       console.error('Error saving meeting:', error);
@@ -515,15 +518,13 @@ function ScheduleMeeting() {
                           color={meeting.created_by === currentUser?.id ? 'primary' : 'textPrimary'}
                         >
                           {meeting.title}
-                          {meeting.created_by === currentUser?.id && (
-                            <Typography 
-                              variant="caption" 
-                              color="primary"
-                              className="ml-2"
-                            >
-                              (Click to edit)
-                            </Typography>
-                          )}
+                          <Typography 
+                            variant="caption" 
+                            color="primary"
+                            className="ml-2"
+                          >
+                            (Click to view/edit)
+                          </Typography>
                         </Typography>
                         {meeting.created_by === currentUser?.id && (
                           <Typography 
@@ -552,16 +553,13 @@ function ScheduleMeeting() {
                               <strong>Description:</strong> {meeting.description}
                             </div>
                           )}
-                          
-                          <div className="mt-4">
-                            <Typography variant="subtitle2" gutterBottom>
-                              Participants:
-                            </Typography>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div>
+                            <strong>Participants:</strong>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
                               {meeting.participants?.map(p => (
                                 <div 
                                   key={p.id}
-                                  className="flex items-center gap-2 p-2 rounded-lg bg-gray-50"
+                                  className="flex items-center justify-between p-2 rounded-lg bg-gray-50"
                                 >
                                   <div className="flex-1">
                                     <Typography variant="body2">
@@ -581,7 +579,6 @@ function ScheduleMeeting() {
                               ))}
                             </div>
                           </div>
-                          
                           {renderMeetingActions(meeting)}
                         </div>
                       </>
