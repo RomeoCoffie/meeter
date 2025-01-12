@@ -234,7 +234,7 @@ function ScheduleMeeting() {
     const isOrganizer = selectedMeeting.created_by === currentUser?.id;
     const isParticipant = selectedMeeting.participants?.some(p => p.id === currentUser?.id);
     
-    if (!isOrganizer && !isParticipant) {
+    if (!isOrganizer || !isParticipant) {
       alert('You must be either the organizer or a participant to cancel this meeting.');
       return;
     }
