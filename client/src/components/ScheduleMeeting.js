@@ -234,10 +234,10 @@ function ScheduleMeeting() {
     const isOrganizer = selectedMeeting.created_by === currentUser?.id;
     const isParticipant = selectedMeeting.participants?.some(p => p.id === currentUser?.id);
     
-    if (!isOrganizer || !isParticipant) {
-      alert('You must be either the organizer or a participant to cancel this meeting.');
-      return;
-    }
+    // if (!isOrganizer && !isParticipant) {
+    //   alert('You must be either the organizer or a participant to cancel this meeting.');
+    //   return;
+    // }
 
     if (!window.confirm('Are you sure you want to cancel this meeting? This will remove it for all participants.')) {
       return;
@@ -258,15 +258,15 @@ function ScheduleMeeting() {
     e.preventDefault();
     
     // Allow both organizer and participants to update
-    if (selectedMeeting) {
-      const isOrganizer = selectedMeeting.created_by === currentUser?.id;
-      const isParticipant = selectedMeeting.participants?.some(p => p.id === currentUser?.id);
+    // if (selectedMeeting) {
+    //   const isOrganizer = selectedMeeting.created_by === currentUser?.id;
+    //   const isParticipant = selectedMeeting.participants?.some(p => p.id === currentUser?.id);
       
-      if (!isOrganizer && !isParticipant) {
-        alert('You must be either the organizer or a participant to update this meeting.');
-        return;
-      }
-    }
+    //   if (!isOrganizer && !isParticipant) {
+    //     alert('You must be either the organizer or a participant to update this meeting.');
+    //     return;
+    //   }
+    // }
 
     if (formData.participants.length === 0) {
       alert('Please select at least one participant');
