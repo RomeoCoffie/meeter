@@ -273,10 +273,99 @@ const deleteMeeting = async (req, res) => {
   }
 };
 
+// @desc    Update meeting
+// @route   PUT /api/meetings/:id
+// @access  Private
+const updateMeeting = async (req, res) => {
+  const { title, description, datetime, duration, participants } = req.body;
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // First check if meeting exists
+    const meetingResult = await client.query(
+      'SELECT created_by FROM meetings WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (meetingResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Meeting not found'
+      });
+    }
+
+    // Update meeting details
+    await client.query(
+      `UPDATE meetings 
+       SET title = $1, description = $2, start_time = $3, duration = $4
+       WHERE id = $5`,
+      [title, description, datetime, duration, req.params.id]
+    );
+
+    // Delete existing participants
+    await client.query(
+      'DELETE FROM meeting_participants WHERE meeting_id = $1',
+      [req.params.id]
+    );
+
+    // Add new participants
+    if (participants && participants.length > 0) {
+      const participantValues = participants.map((userId, index) => 
+        `($${index * 2 + 1}, $${index * 2 + 2})`
+      ).join(', ');
+      
+      const participantParams = participants.flatMap(userId => [req.params.id, userId]);
+      
+      await client.query(`
+        INSERT INTO meeting_participants (meeting_id, user_id)
+        VALUES ${participantValues}
+      `, participantParams);
+    }
+
+    await client.query('COMMIT');
+
+    // Get updated meeting with participants
+    const updatedMeeting = await client.query(`
+      SELECT 
+        m.*,
+        string_agg(u.full_name, ', ') as participant_names,
+        json_agg(json_build_object(
+          'id', u.id,
+          'fullName', u.full_name,
+          'email', u.email
+        )) as participants
+      FROM meetings m 
+      LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id 
+      LEFT JOIN users u ON mp.user_id = u.id 
+      WHERE m.id = $1 
+      GROUP BY m.id`,
+      [req.params.id]
+    );
+
+    res.json({
+      success: true,
+      data: updatedMeeting.rows[0],
+      message: 'Meeting updated successfully'
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error updating meeting:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating meeting'
+    });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   createMeeting,
   getUserMeetings,
   updateMeetingStatus,
   getMeetingDetails,
-  deleteMeeting
+  deleteMeeting,
+  updateMeeting
 }; 
