@@ -85,8 +85,15 @@ const getUserMeetings = async (req, res) => {
     let query = `
       SELECT 
         m.*, 
-        string_agg(u.full_name, ', ') as participant_names,
-        COUNT(*) OVER() as total_count
+        COUNT(*) OVER() as total_count,
+        json_agg(
+          json_build_object(
+            'id', u.id,
+            'fullName', u.full_name,
+            'email', u.email,
+            'status', mp.status
+          )
+        ) FILTER (WHERE u.id IS NOT NULL) as participants
       FROM meetings m 
       LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id 
       LEFT JOIN users u ON mp.user_id = u.id 
@@ -128,7 +135,10 @@ const getUserMeetings = async (req, res) => {
     queryParams.push(parseInt(limit), offset);
 
     const result = await pool.query(query, queryParams);
-    const meetings = result.rows;
+    const meetings = result.rows.map(meeting => ({
+      ...meeting,
+      participants: meeting.participants || []
+    }));
     const totalCount = meetings.length > 0 ? parseInt(meetings[0].total_count) : 0;
 
     res.json({
