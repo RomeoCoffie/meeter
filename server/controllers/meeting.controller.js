@@ -221,9 +221,62 @@ const getMeetingDetails = async (req, res) => {
   }
 };
 
+// @desc    Delete meeting
+// @route   DELETE /api/meetings/:id
+// @access  Private
+const deleteMeeting = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // First check if meeting exists and user has permission
+    const meetingResult = await client.query(
+      'SELECT created_by FROM meetings WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (meetingResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Meeting not found'
+      });
+    }
+
+    // Delete meeting participants first (due to foreign key constraint)
+    await client.query(
+      'DELETE FROM meeting_participants WHERE meeting_id = $1',
+      [req.params.id]
+    );
+
+    // Then delete the meeting
+    await client.query(
+      'DELETE FROM meetings WHERE id = $1',
+      [req.params.id]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: 'Meeting deleted successfully'
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error deleting meeting:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting meeting'
+    });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   createMeeting,
   getUserMeetings,
   updateMeetingStatus,
-  getMeetingDetails
+  getMeetingDetails,
+  deleteMeeting
 }; 
